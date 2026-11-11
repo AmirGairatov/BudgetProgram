@@ -11,6 +11,7 @@ import { uid, nowLocal, money } from './util.js';
 const DATA_KEY = 'budget.v1.data';
 const META_KEY = 'budget.v1.meta';
 const BACKUP_KEY = 'budget.v1.backup';
+const DEFAULT_CURRENCY = 'UZS';
 
 export const ACCOUNT_COLORS = {
   indigo: ['#4338CA', '#6D63F2'],
@@ -52,7 +53,7 @@ const SEED_CATEGORIES = [
 export function seedData() {
   return {
     schema: 1,
-    settings: { currency: '₽', updatedAt: 0 },
+    settings: { currency: DEFAULT_CURRENCY, updatedAt: 0 },
     accounts: [
       { id: 'acc-card', name: 'Карта', type: 'card', color: 'indigo', initial: 0, archived: false, order: 0, updatedAt: 0 },
       { id: 'acc-cash', name: 'Наличные', type: 'cash', color: 'green', initial: 0, archived: false, order: 1, updatedAt: 0 },
@@ -67,9 +68,12 @@ export function seedData() {
 export function normalize(d) {
   if (!d || typeof d !== 'object') throw new Error('Неверный формат данных');
   const arr = (x) => (Array.isArray(x) ? x.filter((r) => r && typeof r.id === 'string') : []);
+  const settings = { currency: DEFAULT_CURRENCY, updatedAt: 0, ...(d.settings || {}) };
+  // Валюта по умолчанию раньше была ₽; если её никто не выбирал вручную — переводим на UZS
+  if (!settings.updatedAt) settings.currency = DEFAULT_CURRENCY;
   return {
     schema: d.schema || 1,
-    settings: { currency: '₽', updatedAt: 0, ...(d.settings || {}) },
+    settings,
     accounts: arr(d.accounts),
     categories: arr(d.categories),
     transactions: arr(d.transactions),
@@ -218,7 +222,7 @@ export const store = {
 
   /* ---------- Выборки ---------- */
 
-  get cur() { return this.data.settings.currency || '₽'; },
+  get cur() { return this.data.settings.currency || DEFAULT_CURRENCY; },
 
   cached(key, fn) {
     if (!this._cache) this._cache = {};

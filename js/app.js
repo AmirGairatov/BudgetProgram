@@ -52,7 +52,7 @@ const icon = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" ari
 const MONTHS_DAT = ['январю', 'февралю', 'марту', 'апрелю', 'маю', 'июню', 'июлю', 'августу', 'сентябрю', 'октябрю', 'ноябрю', 'декабрю'];
 const TYPE_NAMES = { expense: 'Расход', income: 'Доход', transfer: 'Перевод', adjust: 'Корректировка' };
 const EMOJIS = ['🛒', '🍽️', '☕', '🍔', '🍕', '🥗', '🚕', '🚌', '🚗', '⛽', '🅿️', '🚇', '🏠', '💡', '🔧', '🛋️', '🧹', '🪴', '📱', '💻', '🌐', '📺', '🔁', '🎮', '💊', '🏥', '🦷', '🏋️', '👕', '👟', '👜', '💅', '💇', '🎬', '🎵', '🎉', '🎁', '💐', '📚', '🎓', '✈️', '🏨', '🏖️', '🐶', '👶', '❤️', '🙏', '🍺', '🚬', '🧾', '🏦', '💳', '💼', '💰', '💸', '📈', '🛠️', '📦', '✨', '⭐'];
-const CURRENCIES = [['₽', 'Российский рубль'], ['$', 'Доллар США'], ['€', 'Евро'], ['₸', 'Казахстанский тенге'], ['сўм', 'Узбекский сум'], ['Br', 'Белорусский рубль'], ['₴', 'Гривна'], ['₾', 'Грузинский лари'], ['֏', 'Армянский драм'], ['₼', 'Азербайджанский манат'], ['сом', 'Киргизский сом'], ['₺', 'Турецкая лира'], ['£', 'Фунт стерлингов']];
+const CURRENCIES = [['UZS', 'Узбекский сум'], ['сум', 'Узбекский сум'], ['$', 'Доллар США'], ['€', 'Евро'], ['₽', 'Российский рубль'], ['₸', 'Казахстанский тенге'], ['Br', 'Белорусский рубль'], ['₴', 'Гривна'], ['₾', 'Грузинский лари'], ['֏', 'Армянский драм'], ['₼', 'Азербайджанский манат'], ['сом', 'Киргизский сом'], ['₺', 'Турецкая лира'], ['£', 'Фунт стерлингов']];
 
 /* ---------- Состояние интерфейса ---------- */
 
@@ -162,13 +162,18 @@ function heroMoney(minor) {
   return `${sign}${int}${frac}<span class="cur">${esc(cur)}</span>`;
 }
 
+// Сумма для крупных цифр: обозначение валюты чуть мельче, чтобы длинные суммы помещались
+const bigMoney = (minor, sign) => esc(money(minor, store.cur, sign)).replace(/ (\S+)$/, '<span class="c"> $1</span>');
+// Средние значения — без копеек/тийинов
+const roundUnits = (minor) => Math.round(minor / 100) * 100;
+
 const accStyle = (a) => { const [c1, c2] = ACCOUNT_COLORS[a.color] || ACCOUNT_COLORS.indigo; return `--c1:${c1};--c2:${c2}`; };
 
 function accCard(a, bal, { tag = 'button', extra = '' } = {}) {
   const attrs = tag === 'button' ? `data-act="acc-open" data-id="${a.id}"` : '';
   return `<${tag} class="acc t-${a.type} ${extra}" style="${accStyle(a)}" ${attrs}>
     <span class="acc-head"><span class="acc-name">${esc(a.name)}</span>${icon(a.type === 'cash' ? 'cash' : 'card')}</span>
-    <span class="acc-bal">${money(bal, store.cur)}</span>
+    <span class="acc-bal">${bigMoney(bal)}</span>
     <span class="acc-kind">${a.type === 'cash' ? 'Наличные' : 'Карта'}${a.archived ? ' · в архиве' : ''}</span>
   </${tag}>`;
 }
@@ -283,8 +288,8 @@ function viewHome() {
     <section class="card">
       <div class="card-head"><h2>${U.MONTHS[new Date().getMonth()]}</h2><button class="link" data-act="go" data-to="stats">Статистика${icon('chevR')}</button></div>
       <div class="duo">
-        <div><span class="lbl">Расходы</span><b>${money(m.expense, cur)}</b>${deltaHtml(m.expense, pm.expense, false, compareSuffix(month))}</div>
-        <div><span class="lbl">Доходы</span><b>${money(m.income, cur)}</b>${deltaHtml(m.income, pm.income, true, compareSuffix(month))}</div>
+        <div><span class="lbl">Расходы</span><b>${bigMoney(m.expense)}</b>${deltaHtml(m.expense, pm.expense, false, compareSuffix(month))}</div>
+        <div><span class="lbl">Доходы</span><b>${bigMoney(m.income)}</b>${deltaHtml(m.income, pm.income, true, compareSuffix(month))}</div>
       </div>
       ${top.length ? `<div class="cat-list compact">${catRows(top, m.expense, { act: 'home-cat' })}</div>` : ''}
     </section>
@@ -446,8 +451,8 @@ function viewStats() {
   const sel = st.sel >= 0 && st.sel < values.length ? st.sel : -1;
   const per = b.gran === 'day' ? 'в день' : b.gran === 'month' ? 'в месяц' : 'в год';
   const readout = sel >= 0
-    ? `<b>${money(values[sel], cur)}</b><span>${esc(b.titles[sel])}</span><button class="icon-btn" data-act="bar-clear" aria-label="Сбросить">${icon('x')}</button>`
-    : `<b>${money(Math.round(total / elapsedBuckets), cur)}</b><span>в среднем ${per}</span>`;
+    ? `<b>${bigMoney(values[sel])}</b><span>${esc(b.titles[sel])}</span><button class="icon-btn" data-act="bar-clear" aria-label="Сбросить">${icon('x')}</button>`
+    : `<b>${bigMoney(roundUnits(total / elapsedBuckets))}</b><span>в среднем ${per}</span>`;
 
   const cats = breakdown(agg.list, mode, 'category');
   const accs = st.account === 'all' ? breakdown(agg.list, mode, 'account') : [];
@@ -466,10 +471,10 @@ function viewStats() {
       ${U.isCurrentPeriod(p) ? '<span class="muted small">сравнение — с тем же числом дней прошлого периода</span>' : ''}
     </div>
     <div class="kpis">
-      <div class="kpi"><span class="lbl">Расходы</span><b>${money(agg.expense, cur)}</b>${prev ? deltaHtml(agg.expense, prev.expense, false, suffix) : ''}</div>
-      <div class="kpi"><span class="lbl">Доходы</span><b>${money(agg.income, cur)}</b>${prev ? deltaHtml(agg.income, prev.income, true, suffix) : ''}</div>
-      <div class="kpi"><span class="lbl">Разница</span><b class="${net > 0 ? 'pos' : ''}">${money(net, cur, 'always')}</b><span class="delta muted">доходы − расходы</span></div>
-      <div class="kpi"><span class="lbl">Расход в день</span><b>${money(Math.round(agg.expense / days), cur)}</b><span class="delta muted">в среднем за ${days} ${U.plural(days, 'день', 'дня', 'дней')}</span></div>
+      <div class="kpi"><span class="lbl">Расходы</span><b>${bigMoney(agg.expense)}</b>${prev ? deltaHtml(agg.expense, prev.expense, false, suffix) : ''}</div>
+      <div class="kpi"><span class="lbl">Доходы</span><b>${bigMoney(agg.income)}</b>${prev ? deltaHtml(agg.income, prev.income, true, suffix) : ''}</div>
+      <div class="kpi"><span class="lbl">Разница</span><b class="${net > 0 ? 'pos' : ''}">${bigMoney(net, 'always')}</b><span class="delta muted">доходы − расходы</span></div>
+      <div class="kpi"><span class="lbl">Расход в день</span><b>${bigMoney(roundUnits(agg.expense / days))}</b><span class="delta muted">в среднем за ${days} ${U.plural(days, 'день', 'дня', 'дней')}</span></div>
     </div>
     <div class="seg seg-2">
       <button data-act="st-mode" data-v="expense" class="${mode === 'expense' ? 'on' : ''}">Расходы</button>
@@ -812,8 +817,8 @@ function accViewSheet(s) {
   const body = `
     ${accCard(a, bal, { tag: 'div', extra: 'big' })}
     <div class="duo slim">
-      <div><span class="lbl">Расходы за ${U.MONTHS[new Date().getMonth()].toLowerCase()}</span><b>${money(m.expense, cur)}</b></div>
-      <div><span class="lbl">Доходы за ${U.MONTHS[new Date().getMonth()].toLowerCase()}</span><b>${money(m.income, cur)}</b></div>
+      <div><span class="lbl">Расходы за ${U.MONTHS[new Date().getMonth()].toLowerCase()}</span><b>${bigMoney(m.expense)}</b></div>
+      <div><span class="lbl">Доходы за ${U.MONTHS[new Date().getMonth()].toLowerCase()}</span><b>${bigMoney(m.income)}</b></div>
     </div>
     <div class="actions4">
       <button data-act="tx-new" data-type="expense" data-acc="${a.id}"><span class="q-ic exp">${icon('minus')}</span>Расход</button>
@@ -866,7 +871,7 @@ function accEditSheet(s) {
       <button data-act="acc-type" data-v="card" class="${f.type === 'card' ? 'on' : ''}">${icon('card')}Карта</button>
       <button data-act="acc-type" data-v="cash" class="${f.type === 'cash' ? 'on' : ''}">${icon('cash')}Наличные</button>
     </div>
-    <label class="field"><span>Название</span><input class="text-input" data-f="name" value="${esc(f.name)}" placeholder="${f.type === 'cash' ? 'Например: Кошелёк' : 'Например: Т-Банк зарплатная'}" maxlength="40"></label>
+    <label class="field"><span>Название</span><input class="text-input" data-f="name" value="${esc(f.name)}" placeholder="${f.type === 'cash' ? 'Например: Кошелёк' : 'Например: Uzcard Kapitalbank'}" maxlength="40"></label>
     <div class="field-label">Цвет</div>
     <div class="swatches">${Object.keys(ACCOUNT_COLORS).map((k) => `<button class="swatch ${f.color === k ? 'on' : ''}" data-act="acc-color" data-v="${k}" style="${accStyle({ color: k })}" aria-label="${k}"></button>`).join('')}</div>
     <label class="field"><span>${isNew ? 'Сколько сейчас на счёте' : 'Начальный баланс'}</span>
