@@ -229,7 +229,13 @@ h1, h2, h3, p { margin: 0; }
 .banner.err > .ic:first-child { color: var(--neg); }
 
 .hero { padding: 4px 4px 0; }
-.hero-label { color: var(--ink-2); font-size: 14px; }
+.hero-label { display: flex; align-items: center; gap: 2px; color: var(--ink-2); font-size: 14px; }
+.eye { width: 34px; height: 34px; margin: -8px 0; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+.eye:active { background: var(--surface-2); }
+.eye .ic { width: 20px; height: 20px; }
+.secret { white-space: nowrap; letter-spacing: -0.01em; }
+.secret-e { font-style: normal; }
+.hero-value .secret { font-size: 0.8em; }
 .hero-value { font-size: 46px; font-weight: 750; letter-spacing: -0.035em; line-height: 1.08; margin-top: 2px; overflow-wrap: anywhere; }
 .hero-value .frac { font-size: 0.55em; color: var(--ink-2); letter-spacing: -0.01em; }
 .hero-value .cur { font-size: 0.55em; color: var(--ink-2); font-weight: 600; margin-left: 0.18em; }

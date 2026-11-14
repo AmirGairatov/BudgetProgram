@@ -46,6 +46,8 @@ const ICONS = {
   coins: '<ellipse cx="9" cy="7" rx="5.5" ry="2.5"/><path d="M3.5 7v4c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V7"/><path d="M9.5 16.4c.6.1 1.3.1 2 .1 3 0 5.5-1.1 5.5-2.5v-1.5"/><path d="M3.5 11v4c0 1.4 2.5 2.5 5.5 2.5"/><path d="M14.5 11.3c3 .1 6 .9 6 2.2v4c0 1.4-2.5 2.5-5.5 2.5s-5.5-1.1-5.5-2.5"/>',
   tag: '<path d="M3.5 12.5V4.5h8l9 9-8 8-9-9Z"/><path d="M8 8h.01"/>',
   ext: '<path d="M13.5 4.5h6v6M19.5 4.5l-8 8M18 14v5.5H4.5V6H10"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M4 4l16 16"/><path d="M10.6 6.6A8.7 8.7 0 0 1 12 6.5c6 0 9.5 5.5 9.5 5.5a16 16 0 0 1-2.9 3.4M6.6 7.7C4 9.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1"/><path d="M9.9 10a3 3 0 0 0 4.1 4.1"/>',
 };
 const icon = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
@@ -153,7 +155,13 @@ function topbar(title, back) {
   </header>`;
 }
 
+// Глазик: скрывает балансы счетов (суммы операций и статистика остаются видны)
+const balHidden = () => LS.get('hideBal', false);
+const SECRET = '<span class="secret">Секретик <span class="secret-e">🤫</span></span>';
+const balText = (minor) => (balHidden() ? SECRET : money(minor, store.cur));
+
 function heroMoney(minor) {
+  if (balHidden()) return SECRET;
   const cur = store.cur;
   const sign = minor < 0 ? '−' : '';
   const abs = Math.abs(minor);
@@ -163,7 +171,7 @@ function heroMoney(minor) {
 }
 
 // Сумма для крупных цифр: обозначение валюты чуть мельче, чтобы длинные суммы помещались
-const bigMoney = (minor, sign) => esc(money(minor, store.cur, sign)).replace(/ (\S+)$/, '<span class="c"> $1</span>');
+const bigMoney = (minor, sign) => esc(money(minor, store.cur, sign)).replace(/\u00a0(\S+)$/, '<span class="c">\u00a0$1</span>');
 // Средние значения — без копеек/тийинов
 const roundUnits = (minor) => Math.round(minor / 100) * 100;
 
@@ -173,7 +181,7 @@ function accCard(a, bal, { tag = 'button', extra = '' } = {}) {
   const attrs = tag === 'button' ? `data-act="acc-open" data-id="${a.id}"` : '';
   return `<${tag} class="acc t-${a.type} ${extra}" style="${accStyle(a)}" ${attrs}>
     <span class="acc-head"><span class="acc-name">${esc(a.name)}</span>${icon(a.type === 'cash' ? 'cash' : 'card')}</span>
-    <span class="acc-bal">${bigMoney(bal)}</span>
+    <span class="acc-bal">${balHidden() ? SECRET : bigMoney(bal)}</span>
     <span class="acc-kind">${a.type === 'cash' ? 'Наличные' : 'Карта'}${a.archived ? ' · в архиве' : ''}</span>
   </${tag}>`;
 }
@@ -266,11 +274,13 @@ function viewHome() {
   <div class="pad stack">
     ${banner}
     <section class="hero">
-      <div class="hero-label">Всего на счетах</div>
+      <div class="hero-label">Всего на счетах
+        <button class="eye" data-act="toggle-bal" aria-label="${balHidden() ? 'Показать балансы' : 'Скрыть балансы'}" aria-pressed="${balHidden()}">${icon(balHidden() ? 'eyeOff' : 'eye')}</button>
+      </div>
       <div class="hero-value">${heroMoney(sumOf(accs))}</div>
       <div class="hero-split">
-        <span>${icon('card')}Карты <b>${money(sumOf(cards), cur)}</b></span>
-        <span>${icon('cash')}Наличные <b>${money(sumOf(cash), cur)}</b></span>
+        <span>${icon('card')}Карты <b>${balText(sumOf(cards))}</b></span>
+        <span>${icon('cash')}Наличные <b>${balText(sumOf(cash))}</b></span>
       </div>
     </section>
   </div>
@@ -523,7 +533,7 @@ function viewMore() {
   const accRow = (a) => `<button class="row" data-act="acc-open" data-id="${a.id}">
       <span class="row-ic acc-dot" style="${accStyle(a)}">${icon(a.type === 'cash' ? 'cash' : 'card')}</span>
       <span class="row-main">${esc(a.name)}<small>${a.type === 'cash' ? 'Наличные' : 'Карта'}</small></span>
-      <span class="row-val">${money(bal[a.id] || 0, cur)}</span>${icon('chevR', 'chev')}
+      <span class="row-val">${balText(bal[a.id] || 0)}</span>${icon('chevR', 'chev')}
     </button>`;
   return `${topbar('Ещё')}
   <div class="pad stack">
@@ -737,7 +747,7 @@ function accChips(selected, act, exclude) {
   const list = store.accounts({ archived: true }).filter((a) => a.id !== exclude && (!a.archived || a.id === selected));
   if (!list.length) return `<button class="chip" data-act="acc-new">${icon('plus')}Добавить счёт</button>`;
   return list.map((a) => `<button class="chip acc-chip ${a.id === selected ? 'on' : ''}" data-act="${act}" data-id="${a.id}">
-      <span class="sw" style="${accStyle(a)}"></span><span>${esc(a.name)}<small>${money(bal[a.id] || 0, store.cur)}</small></span>
+      <span class="sw" style="${accStyle(a)}"></span><span>${esc(a.name)}<small>${balText(bal[a.id] || 0)}</small></span>
     </button>`).join('');
 }
 
@@ -1049,6 +1059,7 @@ const A = {
   go: (el) => go(el.dataset.to),
   'sheet-close': () => closeSheet(),
   'hint-close': () => { LS.set('hintDone', true); render(); },
+  'toggle-bal': () => { LS.set('hideBal', !balHidden()); render(); },
   'toast-action': () => { const r = $('#toast'); r.classList.remove('show'); r._action?.fn(); },
 
   // операции
