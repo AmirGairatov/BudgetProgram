@@ -473,6 +473,65 @@ button.acc:active { transform: scale(0.97); }
 .chart .xl.sel { fill: var(--ink); font-weight: 650; }
 .chart .hit { fill: transparent; cursor: pointer; }
 
+/* ---------- Планы ---------- */
+
+.gear { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); background: var(--surface); box-shadow: var(--shadow), inset 0 0 0 1px var(--hair); }
+.gear .ic { width: 21px; height: 21px; }
+.ic.tiny { width: 13px; height: 13px; vertical-align: -2px; margin-right: 2px; }
+.neg { color: var(--neg); }
+
+.plan-hero { display: flex; flex-direction: column; gap: 8px; }
+.ph-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14.5px; color: var(--ink-2); }
+.ph-line b { color: var(--ink); font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ph-line b.pos { color: var(--pos); }
+.ph-line.sub { font-size: 13px; padding-top: 10px; border-top: 1px solid var(--hair); }
+.ph-line.sub span { line-height: 1.3; }
+.ph-main { display: flex; flex-direction: column; gap: 2px; padding: 10px 0 2px; border-top: 1px solid var(--hair); }
+.ph-value { font-size: 36px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.1; overflow-wrap: anywhere; }
+.ph-value .frac, .ph-value .cur { font-size: 0.55em; color: var(--ink-2); }
+.ph-value .cur { margin-left: 0.18em; font-weight: 600; }
+.ph-value.neg, .ph-value.neg .cur, .ph-value.neg .frac { color: var(--neg); }
+.ph-value .secret { font-size: 0.85em; }
+
+.plan-list { display: flex; flex-direction: column; padding: 4px 0; }
+.plan-list.home { margin: 10px -16px -12px; padding: 0; border-top: 1px solid var(--hair); }
+.plan { position: relative; display: flex; align-items: center; }
+.plan + .plan::before { content: ""; position: absolute; top: 0; left: 108px; right: 0; height: 1px; background: var(--hair); }
+.plan-check {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-left: 14px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  box-shadow: inset 0 0 0 2px var(--surface-3);
+  transition: transform 0.12s, background 0.12s;
+}
+.plan-check:active { transform: scale(0.88); background: var(--surface-2); }
+.plan-check .ic { width: 16px; height: 16px; stroke-width: 2.6; }
+.plan.done .plan-check { background: var(--pos); color: #fff; box-shadow: none; }
+.plan-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 12px; text-align: left; }
+.plan-main:active { background: var(--surface-2); }
+.plan.done .tx-title { text-decoration: line-through; color: var(--ink-2); }
+.plan.done .tx-amt { color: var(--muted); }
+.tx-amt.phantom { color: var(--ink-2); font-weight: 600; }
+.tx-amt.phantom.pos { color: var(--pos); }
+.overdue { color: var(--neg); font-weight: 600; }
+
+.done-plans > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.done-plans > summary::-webkit-details-marker { display: none; }
+.done-plans > summary .ic { width: 18px; height: 18px; color: var(--muted); transition: transform 0.2s; }
+.done-plans[open] > summary .ic { transform: rotate(180deg); }
+.done-plans > summary h3 { margin-bottom: 8px; }
+
+.title-input { font-size: 18px; font-weight: 600; height: 52px; }
+.seg-4 > * { font-size: 13.5px; }
+.field-label .muted { font-weight: 500; }
+.btn.confirm-exp { background: var(--exp); color: #fff; }
+.btn.confirm-inc { background: var(--inc); color: #fff; }
+
 /* ---------- Списки настроек ---------- */
 
 .group h3 { margin: 6px 4px 8px; font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }

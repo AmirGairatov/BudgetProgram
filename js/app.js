@@ -46,6 +46,9 @@ const ICONS = {
   coins: '<ellipse cx="9" cy="7" rx="5.5" ry="2.5"/><path d="M3.5 7v4c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V7"/><path d="M9.5 16.4c.6.1 1.3.1 2 .1 3 0 5.5-1.1 5.5-2.5v-1.5"/><path d="M3.5 11v4c0 1.4 2.5 2.5 5.5 2.5"/><path d="M14.5 11.3c3 .1 6 .9 6 2.2v4c0 1.4-2.5 2.5-5.5 2.5s-5.5-1.1-5.5-2.5"/>',
   tag: '<path d="M3.5 12.5V4.5h8l9 9-8 8-9-9Z"/><path d="M8 8h.01"/>',
   ext: '<path d="M13.5 4.5h6v6M19.5 4.5l-8 8M18 14v5.5H4.5V6H10"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+  plan: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>',
+  repeat: '<path d="M17 2.5l3 3-3 3"/><path d="M4 11.5v-1a5 5 0 0 1 5-5h11M7 21.5l-3-3 3-3"/><path d="M20 12.5v1a5 5 0 0 1-5 5H4"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
   eyeOff: '<path d="M4 4l16 16"/><path d="M10.6 6.6A8.7 8.7 0 0 1 12 6.5c6 0 9.5 5.5 9.5 5.5a16 16 0 0 1-2.9 3.4M6.6 7.7C4 9.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1"/><path d="M9.9 10a3 3 0 0 0 4.1 4.1"/>',
 };
@@ -151,7 +154,7 @@ function topbar(title, back) {
   return `<header class="bar">
     ${back ? `<a class="back" href="${back.href}">${icon('chevL')}<span>${esc(back.label)}</span></a>` : ''}
     <h1 class="${back ? 'small' : ''}">${esc(title)}</h1>
-    <div class="bar-r">${syncBadge()}</div>
+    <div class="bar-r"><a class="gear" href="#/more" aria-label="Ещё: счета, категории, настройки">${icon('gear')}</a>${syncBadge()}</div>
   </header>`;
 }
 
@@ -295,6 +298,11 @@ function viewHome() {
       <button data-act="tx-new" data-type="transfer"><span class="q-ic trf">${icon('transfer')}</span>Перевод</button>
     </div>
     ${hint}
+    ${store.activePlans().length ? `<section class="card">
+      <div class="card-head"><h2>Планы</h2><button class="link" data-act="go" data-to="plans">Все${icon('chevR')}</button></div>
+      ${store.activePlans().some((p) => p.amount) ? planSummary({ compact: true }) : ''}
+      <div class="plan-list home">${store.activePlans().slice(0, 3).map(planRow).join('')}</div>
+    </section>` : ''}
     <section class="card">
       <div class="card-head"><h2>${U.MONTHS[new Date().getMonth()]}</h2><button class="link" data-act="go" data-to="stats">Статистика${icon('chevR')}</button></div>
       <div class="duo">
@@ -521,6 +529,103 @@ function viewStats() {
   </div>`;
 }
 
+/* ---------- Экран: Планы ---------- */
+
+const REPEAT_NAMES = { week: 'каждую неделю', month: 'каждый месяц', year: 'каждый год' };
+const endOfMonth = () => U.ymd(U.addDays(U.addMonths(new Date(), 1), -1));
+
+function dueLabel(due) {
+  if (!due) return 'без срока';
+  const t = U.today();
+  if (due < t) return `<span class="overdue">просрочено · ${U.dayMonth(due)}</span>`;
+  if (due === t) return 'сегодня';
+  if (due === U.ymd(U.addDays(new Date(), 1))) return 'завтра';
+  return U.dayMonth(due);
+}
+
+function planRow(p) {
+  const c = p.category && store.category(p.category);
+  const ic = c ? `<span class="tx-ic">${esc(c.emoji)}</span>` : `<span class="tx-ic sys">${icon(p.amount ? 'plan' : 'edit')}</span>`;
+  const sub = [p.done ? `выполнено ${U.dayMonth(U.ymd(new Date(p.doneAt)))}` : dueLabel(p.due)];
+  if (p.account) sub.push(esc(accName(p.account)));
+  if (p.repeat) sub.push(`${icon('repeat', 'tiny')}${REPEAT_NAMES[p.repeat]}`);
+  if (p.note) sub.push(esc(p.note));
+  const amt = p.amount ? money(p.type === 'income' ? p.amount : -p.amount, store.cur, p.type === 'income' ? 'always' : 'auto') : '';
+  return `<div class="plan ${p.done ? 'done' : ''}">
+    <button class="plan-check ${p.type}" data-act="${p.done ? 'plan-edit' : 'plan-done'}" data-id="${p.id}" aria-label="${p.done ? 'Выполнено' : 'Отметить выполненным'}">${icon('check')}</button>
+    <button class="plan-main" data-act="plan-edit" data-id="${p.id}">
+      ${ic}
+      <span class="tx-main"><span class="tx-title">${esc(p.title)}</span><span class="tx-sub">${sub.join(' · ')}</span></span>
+      ${amt ? `<span class="tx-amt phantom ${p.type === 'income' ? 'pos' : ''}">${amt}</span>` : ''}
+    </button>
+  </div>`;
+}
+
+// Карточка «сейчас → запланировано → останется»
+function planSummary({ compact = false } = {}) {
+  const hide = balHidden();
+  const all = store.projection();
+  const month = store.projection(endOfMonth());
+  const val = (m) => (hide ? SECRET : bigMoney(m));
+  const short = all.after < 0;
+  if (compact) {
+    return `<div class="duo">
+      <div><span class="lbl">Запланировано</span><b>${all.exp ? bigMoney(-all.exp) : bigMoney(0)}</b>${all.inc ? `<span class="delta muted">и доходов ${money(all.inc, store.cur, 'always')}</span>` : ''}</div>
+      <div><span class="lbl">Останется</span><b class="${short ? 'neg' : ''}">${val(all.after)}</b><span class="delta muted">после всех планов</span></div>
+    </div>`;
+  }
+  return `<section class="card plan-hero">
+    <div class="ph-line"><span>Сейчас на счетах</span><b>${val(all.now)}</b></div>
+    ${all.exp ? `<div class="ph-line"><span>Запланированные траты</span><b>${bigMoney(-all.exp)}</b></div>` : ''}
+    ${all.inc ? `<div class="ph-line"><span>Ожидаемые доходы</span><b class="pos">${bigMoney(all.inc)}</b></div>` : ''}
+    <div class="ph-main">
+      <span class="lbl">Останется после всех планов</span>
+      <div class="ph-value ${short ? 'neg' : ''}">${hide ? SECRET : heroMoney(all.after)}</div>
+      ${short && !hide ? `<span class="delta bad">${icon('warn')}не хватает ${money(-all.after, store.cur)}</span>` : ''}
+    </div>
+    <div class="ph-line sub"><span>К концу месяца (планы со сроком до ${U.dayMonth(endOfMonth())})</span><b>${val(month.after)}</b></div>
+  </section>`;
+}
+
+function viewPlans() {
+  const plans = store.activePlans();
+  const done = store.donePlans().slice(0, 30);
+  const t = U.today(), week = U.ymd(U.addDays(new Date(), 7));
+  const groups = [
+    ['Просрочено', plans.filter((p) => p.due && p.due < t)],
+    ['Ближайшие 7 дней', plans.filter((p) => p.due && p.due >= t && p.due <= week)],
+    ['Позже', plans.filter((p) => p.due && p.due > week)],
+    ['Без срока', plans.filter((p) => !p.due)],
+  ].filter(([, list]) => list.length);
+
+  const proj = store.projection();
+  const bal = store.balances();
+  const accRows = Object.entries(proj.byAcc).map(([id, delta]) => {
+    const a = store.account(id);
+    return `<div class="row static">
+      <span class="row-ic acc-dot" style="${accStyle(a)}">${icon(a.type === 'cash' ? 'cash' : 'card')}</span>
+      <span class="row-main">${esc(a.name)}<small>${balHidden() ? 'Секретик 🤫' : `${money(bal[id] || 0, store.cur)} → ${money((bal[id] || 0) + delta, store.cur)}`}</small></span>
+      <span class="row-val">${money(delta, store.cur, 'always')}</span>
+    </div>`;
+  }).join('');
+
+  return `${topbar('Планы')}
+  <div class="pad stack">
+    ${plans.some((p) => p.amount) ? planSummary() : ''}
+    <button class="btn primary wide" data-act="plan-new">${icon('plus')}Новый план</button>
+    ${!plans.length ? `<section class="card">${empty('Пока ничего не запланировано', 'Записывайте будущие траты и ожидаемые доходы — они не трогают баланс, пока вы их не подтвердите. Здесь будет видно, сколько останется после всех планов.')}</section>` : ''}
+    ${groups.map(([title, list]) => `<section class="group">
+      <h3>${title}</h3>
+      <div class="card plan-list">${list.map(planRow).join('')}</div>
+    </section>`).join('')}
+    ${accRows ? `<section class="group"><h3>Прогноз по счетам</h3><div class="card list">${accRows}</div></section>` : ''}
+    ${done.length ? `<details class="group done-plans">
+      <summary><h3>Выполнено · ${done.length}</h3>${icon('chevD')}</summary>
+      <div class="card plan-list">${done.map(planRow).join('')}</div>
+    </details>` : ''}
+  </div>`;
+}
+
 /* ---------- Экран: Ещё ---------- */
 
 function viewMore() {
@@ -663,7 +768,7 @@ function viewCloud() {
   </div>`;
 }
 
-const VIEWS = { home: viewHome, history: viewHistory, stats: viewStats, more: viewMore };
+const VIEWS = { home: viewHome, plans: viewPlans, history: viewHistory, stats: viewStats, more: viewMore };
 
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
@@ -795,7 +900,8 @@ function txSheet(s) {
     <button class="btn primary big wide" data-act="tx-save">${s.id ? 'Сохранить изменения' : 'Записать'}</button>
     ${s.id ? `<button class="btn danger wide" data-act="tx-delete">${icon('trash')}Удалить операцию</button>` : ''}
   `;
-  return { title: s.id ? TYPE_NAMES[f.type] : 'Новая операция', body, action: { act: 'tx-save', label: 'Готово' } };
+  const title = s.fromPlan ? (f.type === 'income' ? 'Доход по плану' : 'Оплата по плану') : s.id ? TYPE_NAMES[f.type] : 'Новая операция';
+  return { title, body, action: { act: 'tx-save', label: 'Готово' } };
 }
 
 function openTx(type, account) {
@@ -964,7 +1070,88 @@ function rangeSheet(s) {
   return { title: 'Период', body, action: { act: 'range-apply', label: 'Готово' } };
 }
 
-const SHEETS = { tx: txSheet, 'acc-view': accViewSheet, adjust: adjustSheet, 'acc-edit': accEditSheet, 'cat-edit': catEditSheet, picker: pickerSheet, range: rangeSheet };
+/* --- Шторка: план --- */
+
+function planDueChips(due) {
+  const opts = [['', 'Без срока'], [U.today(), 'Сегодня'], [U.ymd(U.addDays(new Date(), 1)), 'Завтра'], [U.ymd(U.addDays(new Date(), 7)), 'Через неделю']];
+  return opts.map(([v, l]) => `<button class="chip ${(due || '') === v ? 'on' : ''}" data-act="plan-due" data-v="${v}">${l}</button>`).join('');
+}
+
+function planSheet(s) {
+  const f = s.form;
+  const p = s.id && store.plan(s.id);
+  const cats = store.categories(f.type, { archived: true }).filter((c) => !c.archived || c.id === f.category);
+  const accs = store.accounts({ archived: true }).filter((a) => !a.archived || a.id === f.account);
+  const body = `
+    <div class="seg seg-2">
+      <button data-act="plan-type" data-v="expense" class="${f.type === 'expense' ? 'on' : ''}">Трата</button>
+      <button data-act="plan-type" data-v="income" class="${f.type === 'income' ? 'on' : ''}">Доход</button>
+    </div>
+    <input class="text-input title-input" data-f="title" value="${esc(f.title)}" placeholder="${f.type === 'income' ? 'Например: Зарплата, вернут долг' : 'Например: Подарок маме, аренда'}" maxlength="80" enterkeyhint="done" aria-label="Что планируете">
+    <div class="amount-box">
+      <input id="amt" class="amount-input" data-f="amount" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" autocomplete="off" enterkeyhint="done" aria-label="Сумма">
+      <span class="amount-cur">${esc(store.cur)}</span>
+      <button class="mini-key" data-act="amt-plus" aria-label="Прибавить">+</button>
+    </div>
+    <div class="amount-hint" id="amt-hint">${amountHint(f) || 'Сумму можно не указывать — тогда это просто заметка'}</div>
+    <div class="field-label">Срок</div>
+    <div class="date-row">
+      ${planDueChips(f.due)}
+      <input type="date" class="date-input" data-f="due" value="${esc(f.due)}" aria-label="Дата">
+    </div>
+    <div class="field-label">Повторять</div>
+    <div class="seg seg-4">${[['none', 'Нет'], ['week', 'Неделя'], ['month', 'Месяц'], ['year', 'Год']].map(([v, l]) => `<button data-act="plan-repeat" data-v="${v}" class="${f.repeat === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="field-label">Счёт <span class="muted">— необязательно</span></div>
+    <div class="chips-row in-sheet">
+      <button class="chip ${!f.account ? 'on' : ''}" data-act="plan-acc" data-id="">Любой</button>
+      ${accs.map((a) => `<button class="chip acc-chip ${a.id === f.account ? 'on' : ''}" data-act="plan-acc" data-id="${a.id}"><span class="sw" style="${accStyle(a)}"></span><span>${esc(a.name)}<small>${balText(store.balances()[a.id] || 0)}</small></span></button>`).join('')}
+    </div>
+    <div class="field-label">Категория <span class="muted">— необязательно</span></div>
+    <div class="cat-grid">
+      ${cats.map((c) => `<button class="cat ${c.id === f.category ? 'on' : ''}" data-act="plan-cat" data-id="${c.id}"><span class="cat-e">${esc(c.emoji)}</span><span class="cat-n">${esc(c.name)}</span></button>`).join('')}
+      <button class="cat add" data-act="cat-new-inline"><span class="cat-e">${icon('plus')}</span><span class="cat-n">Новая</span></button>
+    </div>
+    <div class="field-label">Заметка</div>
+    <input class="text-input" data-f="note" value="${esc(f.note)}" placeholder="Подробности, ссылка, где купить…" maxlength="200" enterkeyhint="done">
+    ${p && !p.done ? `<button class="btn ${f.type === 'income' ? 'confirm-inc' : 'confirm-exp'} big wide" data-act="plan-done" data-id="${p.id}">${icon('check')}${p.amount ? (f.type === 'income' ? 'Получено — записать доход' : 'Оплачено — записать трату') : 'Выполнено'}</button>` : ''}
+    ${p?.done ? `<p class="note center">Выполнено ${U.dayMonth(U.ymd(new Date(p.doneAt)))}${p.txId ? ' — операция есть в истории' : ''}</p>
+      <button class="btn secondary wide" data-act="plan-reopen">${icon('refresh')}Вернуть в планы</button>` : ''}
+    <button class="btn ${p ? 'ghost' : 'primary big'} wide" data-act="plan-save">${p ? 'Сохранить изменения' : 'Запланировать'}</button>
+    ${p ? `<button class="btn danger wide" data-act="plan-delete">${icon('trash')}Удалить план</button>` : ''}`;
+  return { title: p ? (p.done ? 'Выполненный план' : 'План') : 'Новый план', body, action: { act: 'plan-save', label: 'Готово' } };
+}
+
+function openPlanNew() {
+  openSheet({ type: 'plan-edit', form: { type: 'expense', title: '', amount: '', account: null, category: null, due: '', repeat: 'none', note: '' } });
+  const el = $('[data-f="title"]', sheetEl);
+  if (el) try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+}
+
+function openPlanEdit(id) {
+  const p = store.plan(id);
+  if (!p) return;
+  openSheet({ type: 'plan-edit', id, form: {
+    type: p.type, title: p.title, amount: p.amount ? U.amountToInput(p.amount) : '', account: p.account || null,
+    category: p.category || null, due: p.due || '', repeat: p.repeat || 'none', note: p.note || '',
+  } });
+}
+
+// Подтверждение: план с суммой превращается в настоящую операцию (сумму можно поправить)
+function confirmPlan(id) {
+  const p = store.plan(id);
+  if (!p || p.done) return;
+  if (!p.amount) {
+    store.completePlan(id);
+    toast(p.repeat ? `Готово, следующий раз — ${U.dayMonth(store.plan(id).due)}` : 'Отмечено выполненным', p.repeat ? null : { label: 'Вернуть', fn: () => store.reopenPlan(id) });
+    return;
+  }
+  if (!store.accounts().length) { toast('Сначала добавьте счёт'); return; }
+  const acc = p.account && store.account(p.account) && !store.account(p.account).deleted ? p.account : undefined;
+  const form = { ...newTxForm(p.type, acc), amount: U.amountToInput(p.amount), category: p.category || null, note: p.title };
+  openSheet({ type: 'tx', form, fromPlan: id });
+}
+
+const SHEETS = { 'plan-edit': planSheet, tx: txSheet, 'acc-view': accViewSheet, adjust: adjustSheet, 'acc-edit': accEditSheet, 'cat-edit': catEditSheet, picker: pickerSheet, range: rangeSheet };
 
 /* ---------- Тост ---------- */
 
@@ -1064,10 +1251,58 @@ const A = {
 
   // операции
   'tx-new': (el) => {
+    // На вкладке «Планы» кнопка «+» создаёт план
+    if (el.classList.contains('tab-add') && ui.route.name === 'plans') { openPlanNew(); return; }
     if (!store.accounts().length) { toast('Сначала добавьте счёт'); return; }
     openTx(el.dataset.type || 'expense', el.dataset.acc);
   },
   'tx-edit': (el) => openTxEdit(el.dataset.id),
+
+  // планы
+  'plan-new': () => openPlanNew(),
+  'plan-edit': (el) => openPlanEdit(el.dataset.id),
+  'plan-type': (el) => {
+    const f = topSheet().form;
+    if (f.type === el.dataset.v) return;
+    f.type = el.dataset.v;
+    f.category = null;
+    renderSheet();
+  },
+  'plan-acc': (el) => { topSheet().form.account = el.dataset.id || null; setOn(el.parentElement, '.chip', el); },
+  'plan-cat': (el) => {
+    const f = topSheet().form;
+    f.category = f.category === el.dataset.id ? null : el.dataset.id;
+    $$('.cat', el.parentElement).forEach((x) => x.classList.toggle('on', x.dataset.id === f.category));
+  },
+  'plan-due': (el) => {
+    topSheet().form.due = el.dataset.v;
+    $('[data-f="due"]', sheetEl).value = el.dataset.v;
+    setOn(el.parentElement, '.chip', el);
+  },
+  'plan-repeat': (el) => { topSheet().form.repeat = el.dataset.v; setOn(el.parentElement, 'button', el); },
+  'plan-save': () => {
+    const s = topSheet();
+    const f = s.form;
+    const title = f.title.trim();
+    if (!title) { shake($('[data-f="title"]', sheetEl)); toast('Напишите, что планируете'); return; }
+    const amount = f.amount.trim() ? U.parseAmount(f.amount) : 0;
+    if (amount == null || amount < 0) { shake($('.amount-box', sheetEl)); toast('Не получается прочитать сумму'); return; }
+    const due = f.due || (f.repeat !== 'none' ? U.today() : '');
+    store.savePlan({ id: s.id, type: f.type, title, amount, account: f.account, category: f.category, due, repeat: f.repeat, note: f.note });
+    closeSheet();
+    toast(s.id ? 'План сохранён' : 'Запланировано — баланс не изменился');
+  },
+  'plan-done': (el) => {
+    if (topSheet()?.type === 'plan-edit') closeSheet();
+    confirmPlan(el.dataset.id);
+  },
+  'plan-reopen': () => { const s = topSheet(); store.reopenPlan(s.id); closeSheet(); toast('План снова активен'); },
+  'plan-delete': () => {
+    const s = topSheet();
+    store.setPlanDeleted(s.id, true);
+    closeSheet();
+    toast('План удалён', { label: 'Вернуть', fn: () => store.setPlanDeleted(s.id, false) });
+  },
   'tx-type': (el) => {
     const s = topSheet();
     const f = s.form;
@@ -1109,10 +1344,11 @@ const A = {
     if (!f.account) { toast('Выберите счёт'); return; }
     if (f.type === 'transfer' && (!f.to || f.to === f.account)) { toast('Выберите, на какой счёт перевод'); return; }
     if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(f.date)) f.date = U.nowLocal();
-    store.saveTx({ id: s.id, ...f, amount, date: f.date.slice(0, 16) });
+    const tx = store.saveTx({ id: s.id, ...f, amount, date: f.date.slice(0, 16) });
     LS.set('lastAcc.' + f.type, f.account);
+    if (s.fromPlan) store.completePlan(s.fromPlan, tx.id);
     closeSheet();
-    toast(s.id ? 'Изменения сохранены' : 'Записано');
+    toast(s.fromPlan ? 'План выполнен — операция записана' : s.id ? 'Изменения сохранены' : 'Записано');
   },
   'tx-delete': () => {
     const s = topSheet();
@@ -1349,6 +1585,8 @@ document.addEventListener('input', (e) => {
   } else if (t.dataset.f === 'date' && s.type === 'tx') {
     const day = t.value.slice(0, 10);
     $$('[data-act="tx-day"]', sheetEl).forEach((c) => c.classList.toggle('on', day === U.ymd(U.addDays(new Date(), Number(c.dataset.d)))));
+  } else if (t.dataset.f === 'due' && s.type === 'plan-edit') {
+    $$('[data-act="plan-due"]', sheetEl).forEach((c) => c.classList.toggle('on', c.dataset.v === t.value));
   } else if (t.dataset.f === 'emoji' && s.type === 'cat-edit') {
     $('.emoji-hero', sheetEl).textContent = t.value || '•';
   } else if (t.dataset.f === 'name' && s.type === 'acc-edit') {

@@ -6,7 +6,7 @@
 // устройств без потерь (побеждает более свежая версия записи).
 // Удалённые записи остаются «надгробиями» (deleted: true), чтобы удаление тоже синхронизировалось.
 
-import { uid, nowLocal, money } from './util.js';
+import { uid, nowLocal, money, parseYmd, ymd, addDays } from './util.js';
 
 const DATA_KEY = 'budget.v1.data';
 const META_KEY = 'budget.v1.meta';
@@ -62,6 +62,7 @@ export function seedData() {
       id: 'cat-' + id, kind, name, emoji, archived: false, order: i, updatedAt: 0,
     })),
     transactions: [],
+    plans: [],
   };
 }
 
@@ -77,6 +78,7 @@ export function normalize(d) {
     accounts: arr(d.accounts),
     categories: arr(d.categories),
     transactions: arr(d.transactions),
+    plans: arr(d.plans),
   };
 }
 
@@ -109,6 +111,7 @@ export function merge(local, remote) {
     accounts: mergeList(local.accounts, remote.accounts, stats),
     categories: mergeList(local.categories, remote.categories, stats),
     transactions: mergeList(local.transactions, remote.transactions, stats),
+    plans: mergeList(local.plans || [], remote.plans || [], stats),
   };
   return { data, ...stats };
 }
@@ -126,7 +129,8 @@ export function serialize(d) {
     `"settings": ${JSON.stringify(d.settings)},`,
     `"accounts": ${list(d.accounts)},`,
     `"categories": ${list(d.categories)},`,
-    `"transactions": ${list([...d.transactions].sort(txSort))}`,
+    `"transactions": ${list([...d.transactions].sort(txSort))},`,
+    `"plans": ${list(d.plans || [])}`,
     '}',
     '',
   ].join('\n');
@@ -400,4 +404,122 @@ export const store = {
     this.data.settings = { ...this.data.settings, currency, updatedAt: Date.now() };
     this.commit(`Валюта: ${currency}`);
   },
+
+  /* ---------- Планы ---------- */
+  // План — «фантомная» операция: на баланс не влияет, пока не подтверждена.
+  // { id, type: 'expense'|'income', title, amount (0 — просто заметка), account?, category?,
+  //   due?: 'YYYY-MM-DD', repeat: 'none'|'week'|'month'|'year', day? (число месяца для повтора),
+  //   note?, done?, doneAt?, txId?, createdAt, updatedAt, deleted? }
+
+  plan(id) { return this.data.plans.find((p) => p.id === id); },
+
+  // Активные планы: с датой — по сроку, без даты — в конце
+  activePlans() {
+    return this.cached('plans', () => this.data.plans.filter((p) => !p.deleted && !p.done).sort((a, b) => {
+      if (a.due && b.due) return a.due < b.due ? -1 : a.due > b.due ? 1 : (a.createdAt || 0) - (b.createdAt || 0);
+      if (a.due || b.due) return a.due ? -1 : 1;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    }));
+  },
+
+  donePlans() {
+    return this.data.plans.filter((p) => !p.deleted && p.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  },
+
+  // Сколько останется на счетах после планов (необязательно — только со сроком до `until`)
+  projection(until) {
+    const bal = this.balances();
+    const accs = this.accounts();
+    const active = new Set(accs.map((a) => a.id));
+    const now = accs.reduce((s, a) => s + (bal[a.id] || 0), 0);
+    const byAcc = {};
+    let exp = 0, inc = 0;
+    for (const p of this.activePlans()) {
+      if (!p.amount || (until && p.due && p.due > until)) continue;
+      const signed = p.type === 'income' ? p.amount : -p.amount;
+      if (p.type === 'income') inc += p.amount; else exp += p.amount;
+      if (p.account && active.has(p.account)) byAcc[p.account] = (byAcc[p.account] || 0) + signed;
+    }
+    return { now, exp, inc, after: now - exp + inc, byAcc };
+  },
+
+  describePlan(p) {
+    const amt = p.amount ? ` ${money(p.type === 'income' ? p.amount : -p.amount, this.cur, 'always')}` : '';
+    return `${p.title}${amt}`;
+  },
+
+  savePlan(input) {
+    const now = Date.now();
+    const fields = {
+      type: input.type,
+      title: input.title,
+      amount: input.amount || 0,
+      account: input.account || undefined,
+      category: input.category || undefined,
+      due: input.due || undefined,
+      repeat: input.repeat && input.repeat !== 'none' ? input.repeat : undefined,
+      note: (input.note || '').trim() || undefined,
+    };
+    fields.day = fields.repeat && fields.due ? Number(fields.due.slice(8, 10)) : undefined;
+    let p = input.id && this.plan(input.id);
+    if (p) {
+      for (const k of ['account', 'category', 'due', 'repeat', 'note', 'day']) delete p[k];
+      Object.assign(p, fields, { updatedAt: now });
+      for (const k of Object.keys(p)) if (p[k] === undefined) delete p[k];
+      this.commit('План изменён: ' + this.describePlan(p));
+    } else {
+      p = { id: uid(), ...fields, createdAt: now, updatedAt: now };
+      for (const k of Object.keys(p)) if (p[k] === undefined) delete p[k];
+      this.data.plans.push(p);
+      this.commit('Новый план: ' + this.describePlan(p));
+    }
+    return p;
+  },
+
+  // План выполнен. Повторяющийся план остаётся и переносится на следующий срок,
+  // а в «Выполнено» попадает его копия.
+  completePlan(id, txId) {
+    const p = this.plan(id);
+    if (!p) return;
+    const now = Date.now();
+    if (p.repeat) {
+      const { id: _id, repeat, day, ...rest } = p;
+      const copy = { ...rest, id: uid(), done: true, doneAt: now, createdAt: now, updatedAt: now };
+      if (txId) copy.txId = txId;
+      this.data.plans.push(copy);
+      p.due = nextDue(p.due || nowLocal().slice(0, 10), p.repeat, p.day);
+      p.updatedAt = now;
+    } else {
+      Object.assign(p, { done: true, doneAt: now, updatedAt: now });
+      if (txId) p.txId = txId;
+    }
+    this.commit('План выполнен: ' + this.describePlan(p));
+  },
+
+  reopenPlan(id) {
+    const p = this.plan(id);
+    if (!p) return;
+    delete p.done; delete p.doneAt; delete p.txId;
+    p.updatedAt = Date.now();
+    this.commit('План снова активен: ' + this.describePlan(p));
+  },
+
+  setPlanDeleted(id, deleted) {
+    const p = this.plan(id);
+    if (!p) return;
+    if (deleted) p.deleted = true; else delete p.deleted;
+    p.updatedAt = Date.now();
+    this.commit((deleted ? 'План удалён: ' : 'План восстановлен: ') + this.describePlan(p));
+  },
 };
+
+// Следующий срок повторяющегося плана. Для «каждый месяц» держим исходное число:
+// план на 31-е в коротком месяце встанет на последний день, а потом вернётся на 31-е.
+export function nextDue(due, repeat, day) {
+  const d = parseYmd(due);
+  if (repeat === 'week') return ymd(addDays(d, 7));
+  const months = repeat === 'year' ? 12 : 1;
+  const first = new Date(d.getFullYear(), d.getMonth() + months, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return ymd(new Date(first.getFullYear(), first.getMonth(), Math.min(day || d.getDate(), last)));
+}
