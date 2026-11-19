@@ -715,3 +715,44 @@ button.acc:active { transform: scale(0.97); }
 @media (min-width: 600px) {
   .acc-scroll { flex-wrap: wrap; overflow: visible; }
 }
+
+/* ---------- Сюрприз ---------- */
+
+.surprise {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top) + 16px) 18px calc(env(safe-area-inset-bottom) + 16px);
+  background: rgba(20, 8, 30, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.surprise.show { opacity: 1; }
+.surprise-card {
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transform: scale(0.86) rotate(-2deg);
+  transition: transform 0.45s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.surprise.show .surprise-card { transform: none; }
+.surprise-frame {
+  padding: 10px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, #f0abfc, #a855f7 45%, #6366f1 75%, #f472b6);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85), 0 22px 60px rgba(168, 85, 247, 0.55);
+}
+.surprise-frame img {
+  display: block;
+  width: 100%;
+  max-height: calc(100dvh - 210px);
+  object-fit: contain;
+  border-radius: 18px;
+  background: #111;
+}
+.btn.surprise-btn { height: auto; min-height: 56px; padding: 12px 18px; line-height: 1.25; text-align: center; background: #a855f7; color: #fff; box-shadow: 0 10px 26px -8px rgba(168, 85, 247, 0.8); }

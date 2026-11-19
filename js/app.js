@@ -1653,6 +1653,36 @@ function refreshSyncBadges() {
   $$('.sync').forEach((el) => { el.outerHTML = syncBadge(); });
 }
 
+/* ---------- Сюрприз после обновления ---------- */
+// Показывается один раз на каждом устройстве: отметка хранится локально и в облако не уходит.
+// Для нового сюрприза достаточно поменять id и картинку.
+
+const SURPRISE = { id: 'cat-queen-2026-11', img: 'images/surprise-cat.jpg', alt: 'Доброе утро, Королева Кошек! И подружка-кошка' };
+
+function showSurprise() {
+  if (LS.get('surprise.' + SURPRISE.id, false)) return;
+  const el = document.createElement('div');
+  el.className = 'surprise';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-label', 'Сюрприз');
+  el.innerHTML = `<div class="surprise-card">
+      <div class="surprise-frame"><img src="${SURPRISE.img}" alt="${esc(SURPRISE.alt)}"></div>
+      <button class="btn primary big wide surprise-btn" data-act="surprise-close">Лера эту кнопку нажимать, картинка пропадать</button>
+    </div>`;
+  document.body.appendChild(el);
+  document.documentElement.classList.add('locked');
+  requestAnimationFrame(() => el.classList.add('show'));
+}
+
+A['surprise-close'] = (btn) => {
+  LS.set('surprise.' + SURPRISE.id, true);
+  const el = btn.closest('.surprise');
+  el.classList.remove('show');
+  if (!sheets.length) document.documentElement.classList.remove('locked');
+  setTimeout(() => el.remove(), 300);
+};
+
 /* ---------- Запуск ---------- */
 
 store.load();
@@ -1684,6 +1714,7 @@ if (linkCfg) history.replaceState(null, '', location.pathname + '#/more/cloud');
 
 ui.route = parseRoute();
 render();
+showSurprise();
 
 window.addEventListener('hashchange', () => {
   const cfg = cloud.parseConnectLink(location.hash);
